@@ -1,7 +1,8 @@
 FROM python:3.11-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV QT_QPA_PLATFORM=offscreen 
+ENV QT_QPA_PLATFORM=offscreen
+ENV PYTHONPATH=/usr/lib/python3/dist-packages
 
 # Installation des dépendances via APT avec les bons noms (python3-openssl)
 RUN apt-get update && apt-get install -y \
