@@ -1,9 +1,10 @@
+from datetime import datetime
 from fastapi import APIRouter, Depends
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from models import Device, DeviceAPHistory, AccessPoint
+from models import Device, DeviceAPHistory, AccessPoint, FlowBase
 
 router = APIRouter(prefix="/api/devices", tags=["devices"])
 
@@ -18,10 +19,12 @@ async def list_devices(active_only: bool = False, db: AsyncSession = Depends(get
 
     out = []
     for d in devices:
-        # Get current AP
+        # Get current AP info (SSID + BSSID + connected_at)
         ap_ssid = None
+        ap_bssid = None
+        connected_at = None
         res2 = await db.execute(
-            select(AccessPoint.ssid)
+            select(AccessPoint.ssid, AccessPoint.bssid, DeviceAPHistory.connected_at)
             .join(DeviceAPHistory, DeviceAPHistory.ap_id == AccessPoint.id)
             .where(
                 DeviceAPHistory.device_id == d.id,
@@ -29,9 +32,22 @@ async def list_devices(active_only: bool = False, db: AsyncSession = Depends(get
             )
             .limit(1)
         )
-        row = res2.scalar_one_or_none()
+        row = res2.first()
         if row:
-            ap_ssid = row
+            ap_ssid = row[0]
+            ap_bssid = row[1]
+            connected_at = row[2]
+
+        # Flow count for this device
+        res3 = await db.execute(
+            select(func.count(FlowBase.id)).where(FlowBase.device_id == d.id)
+        )
+        flow_count = res3.scalar() or 0
+
+        # Uptime calculation
+        uptime_seconds = None
+        if connected_at:
+            uptime_seconds = int((datetime.utcnow() - connected_at).total_seconds())
 
         out.append({
             "id": d.id, "mac": d.mac, "ip": d.ip,
@@ -43,6 +59,10 @@ async def list_devices(active_only: bool = False, db: AsyncSession = Depends(get
             "rx_bytes": d.rx_bytes, "tx_bytes": d.tx_bytes,
             "rx_packets": d.rx_packets, "tx_packets": d.tx_packets,
             "current_ap_ssid": ap_ssid,
+            "current_ap_bssid": ap_bssid,
+            "connected_at": connected_at.isoformat() if connected_at else None,
+            "uptime_seconds": uptime_seconds,
+            "flow_count": flow_count,
         })
     return out
 

@@ -102,7 +102,8 @@
                             <tr>
                                 <th>Status</th><th>MAC</th><th>IP</th><th>Vendor</th>
                                 <th>Signal</th><th>↓ RX</th><th>↑ TX</th>
-                                <th>AP</th><th>Vu</th>
+                                <th>Paquets</th><th>Flux</th>
+                                <th>AP (BSSID)</th><th>Uptime</th><th>Vu</th>
                             </tr>
                         </thead>
                         <tbody id="devices-tbody"></tbody>
@@ -229,6 +230,14 @@
         if (s < 3600) return Math.floor(s/60) + 'min';
         return Math.floor(s/3600) + 'h';
     }
+    function fmtDuration(s) {
+        if (s == null) return '-';
+        if (s < 60) return s + 's';
+        if (s < 3600) return Math.floor(s/60) + 'min ' + (s%60) + 's';
+        const h = Math.floor(s/3600);
+        const m = Math.floor((s%3600)/60);
+        return h + 'h ' + m + 'min';
+    }
     function protoBadge(p) {
         const cls = {'TCP':'proto-tcp','UDP':'proto-udp','DNS':'proto-dns','HTTP':'proto-http'}[p] || 'proto-other';
         return `<span class="proto-badge ${cls}">${p}</span>`;
@@ -305,7 +314,11 @@
             const r = await fetch('/api/devices?active_only=' + active);
             const devices = await r.json();
             const tbody = document.getElementById('devices-tbody');
-            tbody.innerHTML = devices.map(d => `<tr>
+            tbody.innerHTML = devices.map(d => {
+                const bssidShort = d.current_ap_bssid ? d.current_ap_bssid.substring(9) : '';
+                const apLabel = d.current_ap_ssid ? `${d.current_ap_ssid}<br><span style="font-size:0.7rem;color:var(--text-secondary)">${bssidShort}</span>` : '-';
+                const uptime = d.uptime_seconds != null ? fmtDuration(d.uptime_seconds) : '-';
+                return `<tr>
                 <td><span class="${d.is_active ? 'badge-active' : 'badge-inactive'}">${d.is_active ? 'ON' : 'OFF'}</span></td>
                 <td style="font-family:monospace;font-size:0.8rem;">${d.mac}</td>
                 <td style="font-family:monospace;">${d.ip || '-'}</td>
@@ -313,9 +326,13 @@
                 <td>${d.signal_dbm ? d.signal_dbm + ' dBm' : '-'}</td>
                 <td>${fmt(d.rx_bytes)}</td>
                 <td>${fmt(d.tx_bytes)}</td>
-                <td>${d.current_ap_ssid || '-'}</td>
+                <td style="font-size:0.8rem;">↓${(d.rx_packets||0).toLocaleString()} ↑${(d.tx_packets||0).toLocaleString()}</td>
+                <td style="color:var(--accent);font-weight:600;">${d.flow_count || 0}</td>
+                <td>${apLabel}</td>
+                <td style="font-size:0.8rem;">${uptime}</td>
                 <td style="color:var(--text-secondary);font-size:0.8rem;">${ago(d.last_seen)}</td>
-            </tr>`).join('');
+            </tr>`;
+            }).join('');
         } catch(e) { console.error('Devices error', e); }
     }
 

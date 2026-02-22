@@ -1,4 +1,13 @@
 services:
+  init:
+    build:
+      context: .
+      dockerfile: init.Dockerfile
+    container_name: cia-init
+    network_mode: host
+    privileged: true
+    restart: "no"
+
   wifipumpkin3:
     build: .
     container_name: wifipumpkin3
@@ -6,12 +15,36 @@ services:
     privileged: true
     stdin_open: true
     tty: true
+    depends_on:
+      init:
+        condition: service_completed_successfully
     volumes:
       - .:/app
       - /dev:/dev
       - /lib/modules:/lib/modules
+      - wp3_config:/root/.config/wifipumpkin3
     environment:
       - DISPLAY=:0
       - QT_QPA_PLATFORM=offscreen
     command: ["-p", "/app/attack.pulp"]
-    restart: unless-stopped
+    restart: always
+
+  dashboard:
+    build: ./App
+    container_name: cia-dashboard
+    network_mode: host
+    privileged: true
+    restart: always
+    depends_on:
+      wifipumpkin3:
+        condition: service_started
+    volumes:
+      - dashboard_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker
+    environment:
+      - DB_PATH=/data/network.db
+
+volumes:
+  dashboard_data:
+  wp3_config:

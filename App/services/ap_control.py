@@ -70,7 +70,7 @@ def update_ssid(new_ssid: str) -> dict:
     )
 
     # Restart container
-    rc2, out2 = _run("docker compose -f /home/pi/cia/docker-compose.yml restart", timeout=30)
+    rc2, out2 = _run("docker restart wifipumpkin3", timeout=30)
 
     return {"success": rc2 == 0, "message": out2.strip()}
 
@@ -89,7 +89,7 @@ def update_password(new_password: str) -> dict:
     )
 
     # Restart container
-    rc, out = _run("docker compose -f /home/pi/cia/docker-compose.yml restart", timeout=30)
+    rc, out = _run("docker restart wifipumpkin3", timeout=30)
 
     return {"success": rc == 0, "message": out.strip()}
 
@@ -97,12 +97,12 @@ def update_password(new_password: str) -> dict:
 def stop_ap() -> dict:
     """Stop the fake AP (docker compose down)."""
     logger.info("Stopping AP")
-    rc, out = _run("docker compose -f /home/pi/cia/docker-compose.yml down", timeout=30)
+    rc, out = _run("docker stop wifipumpkin3", timeout=30)
     return {"success": rc == 0, "message": "AP stopped" if rc == 0 else out.strip()}
 
 
 def start_ap() -> dict:
     """Start the fake AP (docker compose up)."""
     logger.info("Starting AP")
-    rc, out = _run("docker compose -f /home/pi/cia/docker-compose.yml up -d", timeout=30)
+    rc, out = _run("docker start wifipumpkin3", timeout=30)
     return {"success": rc == 0, "message": "AP started" if rc == 0 else out.strip()}

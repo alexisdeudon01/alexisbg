@@ -20,7 +20,10 @@ MAC_VENDOR = None
 try:
     from mac_vendor_lookup import MacLookup
     MAC_VENDOR = MacLookup()
-    MAC_VENDOR.update_vendors()
+    try:
+        MAC_VENDOR.update_vendors()
+    except Exception:
+        pass
 except Exception:
     pass
 
