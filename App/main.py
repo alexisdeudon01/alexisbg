@@ -72,11 +72,12 @@ async def index():
 
 if __name__ == "__main__":
     import uvicorn
-    bind_host = os.environ.get("BIND_HOST", "192.168.178.66")
+    bind_host = os.environ.get("BIND_HOST", "0.0.0.0")
+    bind_port = int(os.environ.get("BIND_PORT", "8888"))
     uvicorn.run(
         "main:app",
         host=bind_host,
-        port=80,
+        port=bind_port,
         reload=False,
         log_level="info",
     )

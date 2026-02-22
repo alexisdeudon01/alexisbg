@@ -44,7 +44,8 @@ services:
       - /usr/bin/docker:/usr/bin/docker
     environment:
       - DB_PATH=/data/network.db
-      - BIND_HOST=192.168.178.66
+      - BIND_HOST=0.0.0.0
+      - BIND_PORT=8888
 
 volumes:
   dashboard_data:
