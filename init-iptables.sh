@@ -24,17 +24,6 @@ iptables -t nat -C POSTROUTING -o eth0 -s 10.0.0.0/8 -j MASQUERADE 2>/dev/null |
 iptables -C INPUT -i eth0 -p tcp --dport 22 -j ACCEPT 2>/dev/null || \
     iptables -I INPUT 1 -i eth0 -p tcp --dport 22 -j ACCEPT
 
-echo "[*] Blocage accès dashboard/admin depuis wlan1 (fake AP clients)..."
-# Bloquer port 80 (dashboard) depuis wlan1
-iptables -C INPUT -i wlan1 -p tcp --dport 80 -j DROP 2>/dev/null || \
-    iptables -A INPUT -i wlan1 -p tcp --dport 80 -j DROP
-# Bloquer port 22 (SSH) depuis wlan1
-iptables -C INPUT -i wlan1 -p tcp --dport 22 -j DROP 2>/dev/null || \
-    iptables -A INPUT -i wlan1 -p tcp --dport 22 -j DROP
-# Bloquer port 61208 (Glances) depuis wlan1
-iptables -C INPUT -i wlan1 -p tcp --dport 61208 -j DROP 2>/dev/null || \
-    iptables -A INPUT -i wlan1 -p tcp --dport 61208 -j DROP
-
 # Protéger wlan0 (ne pas se connecter au fake AP)
 nmcli device disconnect wlan0 2>/dev/null || true
 nmcli device set wlan0 autoconnect no 2>/dev/null || true
