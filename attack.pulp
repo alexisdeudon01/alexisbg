@@ -1,4 +1,8 @@
 set interface wlan1
 set ssid FRITZ!Box 7530 PF
+set security true
+set wpa_type 2
+set wpa_algorithms CCMP
+set wpa_sharedkey 68828098579046389427
 set proxy noproxy
 start

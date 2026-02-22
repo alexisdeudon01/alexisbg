@@ -67,7 +67,18 @@ echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward > /dev/null
 echo "[+] IP forwarding activé"
 
 # ----------------------------------------------------------
-# 4. Préparation wlan1 (Mode AP)
+# 4. Protéger wlan0 : ne pas se connecter au fake AP
+#    (quand le Wi-Fi routeur est coupé, wlan0 risque de
+#     s'associer au fake AP car même SSID)
+# ----------------------------------------------------------
+echo "[*] Protection wlan0 : désactivation auto-connect..."
+sudo nmcli device disconnect wlan0 2>/dev/null
+sudo nmcli device set wlan0 autoconnect no 2>/dev/null
+sudo ip addr flush dev wlan0 2>/dev/null
+echo "[+] wlan0 isolé (SSH via eth0 uniquement tant que le Wi-Fi routeur est off)"
+
+# ----------------------------------------------------------
+# 5. Préparation wlan1 (Mode AP)
 # ----------------------------------------------------------
 echo "[*] Préparation de wlan1 (Mode AP)..."
 sudo nmcli device set wlan1 managed no 2>/dev/null
