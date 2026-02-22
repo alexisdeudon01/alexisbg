@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIA — Network Monitor</title>
+    <link rel="stylesheet" href="/static/css/custom.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/vis-network@9.1.6/standalone/umd/vis-network.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+    <style>
+        .vis-network { outline: none !important; }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header style="padding:1rem 2rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);">
+        <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:20px;">🛡</div>
+            <div>
+                <h1 style="margin:0;font-size:1.25rem;font-weight:700;">CIA Network Monitor</h1>
+                <p style="margin:0;font-size:0.75rem;color:var(--text-secondary);">Raspberry Pi 5 — Fake AP Dashboard</p>
+            </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:16px;">
+            <span id="ap-status-badge" class="badge-active pulse">● AP ACTIVE</span>
+            <span style="color:var(--text-secondary);font-size:0.8rem;" id="clock"></span>
+        </div>
+    </header>
+
+    <!-- Stats Bar -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;padding:1.5rem 2rem;">
+        <div class="card" style="text-align:center;">
+            <div style="color:var(--text-secondary);font-size:0.8rem;">Appareils actifs</div>
+            <div class="stat-value" id="stat-active">-</div>
+        </div>
+        <div class="card" style="text-align:center;">
+            <div style="color:var(--text-secondary);font-size:0.8rem;">Total appareils</div>
+            <div class="stat-value" id="stat-total">-</div>
+        </div>
+        <div class="card" style="text-align:center;">
+            <div style="color:var(--text-secondary);font-size:0.8rem;">Flux capturés</div>
+            <div class="stat-value" id="stat-flows">-</div>
+        </div>
+        <div class="card" style="text-align:center;">
+            <div style="color:var(--text-secondary);font-size:0.8rem;">Volume total</div>
+            <div class="stat-value" id="stat-bytes">-</div>
+        </div>
+        <div class="card" style="text-align:center;">
+            <div style="color:var(--text-secondary);font-size:0.8rem;">↓ RX Total</div>
+            <div class="stat-value" id="stat-rx">-</div>
+        </div>
+        <div class="card" style="text-align:center;">
+            <div style="color:var(--text-secondary);font-size:0.8rem;">↑ TX Total</div>
+            <div class="stat-value" id="stat-tx">-</div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <nav style="padding:0 2rem;display:flex;gap:4px;border-bottom:1px solid var(--border);">
+        <button class="tab-btn active" data-tab="topology">🌐 Topologie</button>
+        <button class="tab-btn" data-tab="devices">📱 Appareils</button>
+        <button class="tab-btn" data-tab="flows">📡 Flux</button>
+        <button class="tab-btn" data-tab="dns">🔍 DNS</button>
+        <button class="tab-btn" data-tab="protocols">📊 Protocoles</button>
+        <button class="tab-btn" data-tab="settings">⚙️ Garde-fou</button>
+    </nav>
+
+    <!-- Tab Contents -->
+    <main style="padding:1.5rem 2rem;">
+
+        <!-- TAB: Topology -->
+        <div id="tab-topology" class="tab-content active">
+            <div class="card">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                    <h2 style="margin:0;font-size:1.1rem;">Diagramme réseau en temps réel</h2>
+                    <button class="btn-primary" onclick="refreshTopology()" style="font-size:0.8rem;">⟳ Rafraîchir</button>
+                </div>
+                <div id="network-graph"></div>
+                <div style="margin-top:0.75rem;display:flex;gap:1.5rem;font-size:0.8rem;color:var(--text-secondary);">
+                    <span>🔵 Appareil</span>
+                    <span>🟢 Access Point</span>
+                    <span>🟠 Routeur</span>
+                    <span>🌍 Internet</span>
+                    <span>Épaisseur = volume de trafic</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: Devices -->
+        <div id="tab-devices" class="tab-content">
+            <div class="card">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                    <h2 style="margin:0;font-size:1.1rem;">Appareils détectés</h2>
+                    <label style="font-size:0.8rem;color:var(--text-secondary);">
+                        <input type="checkbox" id="filter-active" checked onchange="refreshDevices()"> Actifs uniquement
+                    </label>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Status</th><th>MAC</th><th>IP</th><th>Vendor</th>
+                                <th>Signal</th><th>↓ RX</th><th>↑ TX</th>
+                                <th>AP</th><th>Vu</th>
+                            </tr>
+                        </thead>
+                        <tbody id="devices-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: Flows -->
+        <div id="tab-flows" class="tab-content">
+            <div class="card">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                    <h2 style="margin:0;font-size:1.1rem;">Flux réseau (live)</h2>
+                    <div style="display:flex;gap:8px;">
+                        <select id="flow-proto-filter" class="input-dark" style="width:auto;" onchange="refreshFlows()">
+                            <option value="">Tous</option>
+                            <option value="TCP">TCP</option>
+                            <option value="UDP">UDP</option>
+                            <option value="DNS">DNS</option>
+                            <option value="HTTP">HTTP</option>
+                        </select>
+                        <button class="btn-primary" onclick="refreshFlows()" style="font-size:0.8rem;">⟳</button>
+                    </div>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Heure</th><th>Proto</th><th>Source</th>
+                                <th>Destination</th><th>Taille</th><th>Détail</th>
+                            </tr>
+                        </thead>
+                        <tbody id="flows-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: DNS -->
+        <div id="tab-dns" class="tab-content">
+            <div class="card">
+                <h2 style="margin:0 0 1rem;font-size:1.1rem;">Top domaines DNS</h2>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+                    <div>
+                        <canvas id="dns-chart" height="300"></canvas>
+                    </div>
+                    <div>
+                        <h3 style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:0.5rem;">Top HTTP Hosts</h3>
+                        <div id="http-hosts-list"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: Protocols -->
+        <div id="tab-protocols" class="tab-content">
+            <div class="card">
+                <h2 style="margin:0 0 1rem;font-size:1.1rem;">Répartition des protocoles</h2>
+                <div style="max-width:500px;margin:0 auto;">
+                    <canvas id="proto-chart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: Settings (Garde-fou) -->
+        <div id="tab-settings" class="tab-content">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+                <div class="card">
+                    <h2 style="margin:0 0 1rem;font-size:1.1rem;">⚙️ Configuration AP</h2>
+                    <div style="margin-bottom:1rem;">
+                        <label style="font-size:0.8rem;color:var(--text-secondary);">SSID</label>
+                        <input type="text" id="input-ssid" class="input-dark" placeholder="FRITZ!Box 7530 PF">
+                    </div>
+                    <div style="margin-bottom:1rem;">
+                        <label style="font-size:0.8rem;color:var(--text-secondary);">Mot de passe WPA2</label>
+                        <input type="text" id="input-password" class="input-dark" placeholder="••••••••">
+                    </div>
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn-primary" onclick="updateAP()">Appliquer</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <h2 style="margin:0 0 1rem;font-size:1.1rem;">🔴 Contrôle AP</h2>
+                    <div id="ap-detail" style="margin-bottom:1rem;font-size:0.9rem;"></div>
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn-danger" onclick="stopAP()">⏹ Arrêter AP</button>
+                        <button class="btn-success" onclick="startAP()">▶ Démarrer AP</button>
+                    </div>
+                    <div id="ap-msg" style="margin-top:1rem;font-size:0.85rem;"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+    /* ─── Tabs ─────────────────────────────── */
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+        });
+    });
+
+    /* ─── Clock ────────────────────────────── */
+    setInterval(() => {
+        document.getElementById('clock').textContent = new Date().toLocaleTimeString('fr-FR');
+    }, 1000);
+
+    /* ─── Helpers ──────────────────────────── */
+    function fmt(b) {
+        if (b == null) return '0 B';
+        const u = ['B','KB','MB','GB'];
+        let i = 0;
+        while (b >= 1024 && i < u.length-1) { b /= 1024; i++; }
+        return b.toFixed(1) + ' ' + u[i];
+    }
+    function ago(iso) {
+        if (!iso) return '-';
+        const d = new Date(iso + 'Z');
+        const s = Math.floor((Date.now() - d) / 1000);
+        if (s < 60) return s + 's';
+        if (s < 3600) return Math.floor(s/60) + 'min';
+        return Math.floor(s/3600) + 'h';
+    }
+    function protoBadge(p) {
+        const cls = {'TCP':'proto-tcp','UDP':'proto-udp','DNS':'proto-dns','HTTP':'proto-http'}[p] || 'proto-other';
+        return `<span class="proto-badge ${cls}">${p}</span>`;
+    }
+
+    /* ─── Dashboard Stats ──────────────────── */
+    async function refreshStats() {
+        try {
+            const r = await fetch('/api/stats/dashboard');
+            const d = await r.json();
+            document.getElementById('stat-active').textContent = d.active_devices;
+            document.getElementById('stat-total').textContent = d.total_devices;
+            document.getElementById('stat-flows').textContent = d.total_flows.toLocaleString();
+            document.getElementById('stat-bytes').textContent = fmt(d.total_flow_bytes);
+            document.getElementById('stat-rx').textContent = fmt(d.total_rx);
+            document.getElementById('stat-tx').textContent = fmt(d.total_tx);
+        } catch(e) { console.error('Stats error', e); }
+    }
+
+    /* ─── Topology (vis.js) ────────────────── */
+    let network = null;
+    async function refreshTopology() {
+        try {
+            const r = await fetch('/api/stats/topology');
+            const data = await r.json();
+
+            const nodes = data.nodes.map(n => {
+                let shape = 'dot', color = '#3b82f6', size = 20, icon = null;
+                if (n.group === 'ap') { shape = 'diamond'; color = '#22c55e'; size = 30; }
+                else if (n.group === 'router') { shape = 'triangle'; color = '#f59e0b'; size = 35; }
+                else if (n.group === 'internet') { shape = 'star'; color = '#8b5cf6'; size = 40; }
+                else {
+                    size = 15 + Math.min(20, (n.rx_bytes || 0) / 500000);
+                    const sig = n.signal_dbm || -80;
+                    if (sig > -50) color = '#22c55e';
+                    else if (sig > -70) color = '#3b82f6';
+                    else color = '#ef4444';
+                }
+                return { id: n.id, label: n.label, title: n.title, shape, color, size,
+                         font: { color: '#f1f5f9', size: 11 }, borderWidth: 2 };
+            });
+
+            const edges = data.edges.map(e => ({
+                from: e.from, to: e.to,
+                label: e.label || '',
+                width: e.width || 1,
+                color: { color: '#475569', highlight: '#3b82f6' },
+                font: { color: '#94a3b8', size: 9, strokeWidth: 0 },
+                arrows: { to: { enabled: true, scaleFactor: 0.5 } },
+                smooth: { type: 'curvedCW', roundness: 0.15 },
+            }));
+
+            const container = document.getElementById('network-graph');
+            if (network) {
+                network.setData({ nodes, edges });
+            } else {
+                network = new vis.Network(container, { nodes, edges }, {
+                    physics: {
+                        solver: 'forceAtlas2Based',
+                        forceAtlas2Based: { gravitationalConstant: -60, springLength: 150 },
+                        stabilization: { iterations: 100 },
+                    },
+                    interaction: { hover: true, tooltipDelay: 100 },
+                    layout: { improvedLayout: true },
+                });
+            }
+        } catch(e) { console.error('Topology error', e); }
+    }
+
+    /* ─── Devices Table ────────────────────── */
+    async function refreshDevices() {
+        try {
+            const active = document.getElementById('filter-active').checked;
+            const r = await fetch('/api/devices?active_only=' + active);
+            const devices = await r.json();
+            const tbody = document.getElementById('devices-tbody');
+            tbody.innerHTML = devices.map(d => `<tr>
+                <td><span class="${d.is_active ? 'badge-active' : 'badge-inactive'}">${d.is_active ? 'ON' : 'OFF'}</span></td>
+                <td style="font-family:monospace;font-size:0.8rem;">${d.mac}</td>
+                <td style="font-family:monospace;">${d.ip || '-'}</td>
+                <td>${d.vendor || '-'}</td>
+                <td>${d.signal_dbm ? d.signal_dbm + ' dBm' : '-'}</td>
+                <td>${fmt(d.rx_bytes)}</td>
+                <td>${fmt(d.tx_bytes)}</td>
+                <td>${d.current_ap_ssid || '-'}</td>
+                <td style="color:var(--text-secondary);font-size:0.8rem;">${ago(d.last_seen)}</td>
+            </tr>`).join('');
+        } catch(e) { console.error('Devices error', e); }
+    }
+
+    /* ─── Flows Table ──────────────────────── */
+    async function refreshFlows() {
+        try {
+            const proto = document.getElementById('flow-proto-filter').value;
+            const url = '/api/flows?limit=100' + (proto ? '&protocol=' + proto : '');
+            const r = await fetch(url);
+            const flows = await r.json();
+            const tbody = document.getElementById('flows-tbody');
+            tbody.innerHTML = flows.map(f => {
+                let detail = '';
+                if (f.detail) {
+                    if (f.detail.query) detail = f.detail.query;
+                    else if (f.detail.method) detail = `${f.detail.method} ${f.detail.host || ''}${(f.detail.url || '').substring(0,40)}`;
+                    else if (f.detail.flags) detail = `[${f.detail.flags}]`;
+                    else if (f.detail.payload_text) detail = f.detail.payload_text.substring(0,60);
+                }
+                return `<tr>
+                    <td style="font-size:0.8rem;color:var(--text-secondary);">${f.timestamp ? new Date(f.timestamp+'Z').toLocaleTimeString('fr-FR') : '-'}</td>
+                    <td>${protoBadge(f.protocol)}</td>
+                    <td style="font-family:monospace;font-size:0.8rem;">${f.src_ip || '-'}${f.src_port ? ':'+f.src_port : ''}</td>
+                    <td style="font-family:monospace;font-size:0.8rem;">${f.dst_ip || '-'}${f.dst_port ? ':'+f.dst_port : ''}</td>
+                    <td>${f.length || 0} B</td>
+                    <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${detail}</td>
+                </tr>`;
+            }).join('');
+        } catch(e) { console.error('Flows error', e); }
+    }
+
+    /* ─── DNS & Protocol Charts ────────────── */
+    let dnsChart = null, protoChart = null;
+    async function refreshCharts() {
+        try {
+            const r = await fetch('/api/flows/stats');
+            const data = await r.json();
+
+            // DNS Chart
+            const dnsCtx = document.getElementById('dns-chart').getContext('2d');
+            const dnsLabels = data.top_domains.map(d => d.domain.length > 25 ? d.domain.substring(0,25)+'…' : d.domain);
+            const dnsCounts = data.top_domains.map(d => d.count);
+            if (dnsChart) dnsChart.destroy();
+            dnsChart = new Chart(dnsCtx, {
+                type: 'bar',
+                data: {
+                    labels: dnsLabels,
+                    datasets: [{ label: 'Requêtes', data: dnsCounts,
+                        backgroundColor: 'rgba(59,130,246,0.7)', borderRadius: 4 }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
+                        y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } }
+                    }
+                }
+            });
+
+            // HTTP hosts list
+            const hostDiv = document.getElementById('http-hosts-list');
+            hostDiv.innerHTML = data.top_http_hosts.map(h =>
+                `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:0.85rem;">
+                    <span>${h.host || 'unknown'}</span>
+                    <span style="color:var(--accent);font-weight:600;">${h.count}</span>
+                </div>`
+            ).join('');
+
+            // Protocol Chart
+            const protoCtx = document.getElementById('proto-chart').getContext('2d');
+            const protoLabels = data.protocols.map(p => p.protocol);
+            const protoCounts = data.protocols.map(p => p.count);
+            const protoColors = protoLabels.map(l => ({
+                'TCP':'#1d4ed8','UDP':'#7c3aed','DNS':'#059669','HTTP':'#d97706'
+            }[l] || '#475569'));
+            if (protoChart) protoChart.destroy();
+            protoChart = new Chart(protoCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: protoLabels,
+                    datasets: [{ data: protoCounts, backgroundColor: protoColors, borderWidth: 0 }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: '#f1f5f9', padding: 20 } }
+                    }
+                }
+            });
+        } catch(e) { console.error('Charts error', e); }
+    }
+
+    /* ─── AP Controls ──────────────────────── */
+    async function refreshAPStatus() {
+        try {
+            const r = await fetch('/api/ap/status');
+            const d = await r.json();
+            document.getElementById('input-ssid').placeholder = d.ssid || '';
+            document.getElementById('input-password').placeholder = d.password ? '••••••••' : '';
+            document.getElementById('ap-detail').innerHTML = `
+                <div style="display:grid;gap:6px;">
+                    <div><b>SSID:</b> ${d.ssid || '-'}</div>
+                    <div><b>BSSID:</b> ${d.bssid || '-'}</div>
+                    <div><b>Channel:</b> ${d.channel || '-'}</div>
+                    <div><b>Security:</b> ${d.security || 'Open'}</div>
+                    <div><b>TX Power:</b> ${d.txpower || '-'} dBm</div>
+                    <div><b>Docker:</b> ${d.docker_status || '-'}</div>
+                    <div><b>Status:</b> ${d.running
+                        ? '<span class="badge-active">RUNNING</span>'
+                        : '<span class="badge-inactive">STOPPED</span>'}</div>
+                </div>`;
+            const badge = document.getElementById('ap-status-badge');
+            if (d.running) {
+                badge.className = 'badge-active pulse';
+                badge.textContent = '● AP ACTIVE';
+            } else {
+                badge.className = 'badge-inactive';
+                badge.textContent = '● AP DOWN';
+            }
+        } catch(e) { console.error('AP status error', e); }
+    }
+
+    async function updateAP() {
+        const ssid = document.getElementById('input-ssid').value;
+        const pw = document.getElementById('input-password').value;
+        if (!ssid && !pw) { alert('Remplir au moins un champ'); return; }
+        const body = {};
+        if (ssid) body.ssid = ssid;
+        if (pw) body.password = pw;
+        const r = await fetch('/api/ap/update', {
+            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+        });
+        const d = await r.json();
+        document.getElementById('ap-msg').innerHTML = `<span style="color:var(--success);">Config mise à jour. Redémarrage en cours...</span>`;
+        setTimeout(refreshAPStatus, 15000);
+    }
+
+    async function stopAP() {
+        if (!confirm('Arrêter le fake AP ?')) return;
+        document.getElementById('ap-msg').innerHTML = '<span style="color:var(--warning);">Arrêt en cours...</span>';
+        await fetch('/api/ap/stop', { method: 'POST' });
+        setTimeout(refreshAPStatus, 5000);
+    }
+
+    async function startAP() {
+        document.getElementById('ap-msg').innerHTML = '<span style="color:var(--warning);">Démarrage en cours...</span>';
+        await fetch('/api/ap/start', { method: 'POST' });
+        setTimeout(refreshAPStatus, 15000);
+    }
+
+    /* ─── Auto-refresh ─────────────────────── */
+    async function refreshAll() {
+        await Promise.all([refreshStats(), refreshTopology(), refreshDevices(), refreshAPStatus()]);
+    }
+
+    // Initial load
+    refreshAll();
+    refreshFlows();
+    refreshCharts();
+
+    // Auto-refresh every 5 seconds
+    setInterval(refreshStats, 5000);
+    setInterval(refreshTopology, 10000);
+    setInterval(refreshDevices, 5000);
+    setInterval(refreshFlows, 8000);
+    setInterval(refreshCharts, 30000);
+    setInterval(refreshAPStatus, 15000);
+    </script>
+</body>
+</html>
