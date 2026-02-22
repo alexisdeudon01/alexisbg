@@ -11,5 +11,5 @@ services:
     environment:
       - DISPLAY=:0
       - QT_QPA_PLATFORM=offscreen
-    command: ["--pulp", "/app/attack.pulp"]
+    command: ["-p", "/app/attack.pulp"]
     restart: unless-stopped
