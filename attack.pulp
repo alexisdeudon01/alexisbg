@@ -1,4 +1,4 @@
 set interface wlan1
-set ssid "FRITZ!Box 7530 PF"
+set ssid FRITZ!Box 7530 PF
 set proxy noproxy
 start
