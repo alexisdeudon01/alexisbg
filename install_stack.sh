@@ -39,6 +39,8 @@ services:
     container_name: wifipumpkin3
     network_mode: host
     privileged: true
+    stdin_open: true
+    tty: true
     volumes:
       - .:/app
       - /dev:/dev
