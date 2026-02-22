@@ -1,0 +1,15 @@
+services:
+  wifipumpkin3:
+    build: .
+    container_name: wifipumpkin3
+    network_mode: host
+    privileged: true
+    volumes:
+      - .:/app
+      - /dev:/dev
+      - /lib/modules:/lib/modules
+    environment:
+      - DISPLAY=:0
+      - QT_QPA_PLATFORM=offscreen
+    command: ["--pulp", "/app/attack.pulp"]
+    restart: unless-stopped
